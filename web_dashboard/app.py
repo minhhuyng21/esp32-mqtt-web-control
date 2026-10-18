@@ -59,19 +59,8 @@ def on_disconnect(
     with state_lock:
         mqtt_connected = False
 
-    server_sent = getattr(
-        disconnect_flags,
-        "is_disconnect_packet_from_server",
-        None,
-    )
-    reason_value = getattr(reason_code, "value", None)
-
-    print(
-        f"MQTT disconnected | "
-        f"reason={reason_code} | "
-        f"value={reason_value} | "
-        f"server_sent={server_sent}"
-    )
+    print(f"MQTT disconnect reason: {reason_code!r}")
+    print(f"Disconnect flags: {disconnect_flags!r}")
 
 def on_connect_fail(client, userdata):
     print(
