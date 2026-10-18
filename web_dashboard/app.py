@@ -5,7 +5,7 @@ import uuid
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template
-
+import time
 # PASS.env chỉ dùng ở local.
 # Trên Render, cấu hình biến môi trường trong Dashboard.
 load_dotenv("PASS.env")
@@ -16,7 +16,9 @@ MQTT_HOST = os.getenv("MQTT_HOST")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "8883"))
 MQTT_USER = os.getenv("MQTT_USER")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
-
+connect_count = 0
+disconnect_count = 0
+last_event = ""
 # Đặt MQTT_TLS=true nếu dùng MQTT qua TLS.
 MQTT_TLS = os.getenv("MQTT_TLS", "true").lower() == "true"
 
@@ -36,6 +38,9 @@ def on_connect(client, userdata, flags, reason_code, properties):
     global mqtt_connected
 
     if reason_code == 0:
+        global connect_count, last_event
+        connect_count += 1
+        last_event = f"connected {time.strftime('%H:%M:%S')}"
         with state_lock:
             mqtt_connected = True
 
@@ -55,7 +60,9 @@ def on_disconnect(
     client, userdata, disconnect_flags, reason_code, properties
 ):
     global mqtt_connected
-
+    global disconnect_count, last_event
+    disconnect_count += 1
+    last_event = f"disconnected {time.strftime('%H:%M:%S')} {reason_code!r}"
     with state_lock:
         mqtt_connected = False
 
