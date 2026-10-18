@@ -94,6 +94,10 @@ def start_mqtt():
     """Start one MQTT client for this application process."""
     global client, mqtt_started
 
+    print(
+        f"Starting MQTT: host={MQTT_HOST}, "
+        f"port={MQTT_PORT}, TLS={MQTT_TLS}"
+    )
     with mqtt_start_lock:
         if mqtt_started:
             return
