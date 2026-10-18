@@ -59,6 +59,13 @@ def on_disconnect(client, userdata, disconnect_flags, reason_code, properties):
 
     print(f"Disconnected from MQTT broker: {reason_code}")
 
+def on_connect_fail(client, userdata):
+    print(
+        f"MQTT TCP connection failed: "
+        f"host={MQTT_HOST}, "
+        f"port={MQTT_PORT}, "
+        f"TLS={MQTT_TLS}"
+    )
 
 def on_message(client, userdata, msg):
     global led_state
@@ -76,6 +83,9 @@ def on_message(client, userdata, msg):
 
         print(f"ESP32 reported LED state: {received}")
 
+def on_mqtt_log(client, userdata, level, buf):
+    if level in (mqtt.MQTT_LOG_ERR, mqtt.MQTT_LOG_WARNING):
+        print(f"[MQTT] {buf}")
 
 def start_mqtt():
     """Start one MQTT client for this application process."""
@@ -103,8 +113,9 @@ def start_mqtt():
 
         mqtt_client.on_connect = on_connect
         mqtt_client.on_disconnect = on_disconnect
+        mqtt_client.on_connect_fail = on_connect_fail
         mqtt_client.on_message = on_message
-
+        mqtt_client.on_log = on_mqtt_log
         # loop_start() handles the network loop and reconnection.
         mqtt_client.reconnect_delay_set(
             min_delay=1,
