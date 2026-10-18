@@ -51,13 +51,27 @@ def on_connect(client, userdata, flags, reason_code, properties):
         print(f"MQTT connection failed: {reason_code}")
 
 
-def on_disconnect(client, userdata, disconnect_flags, reason_code, properties):
+def on_disconnect(
+    client, userdata, disconnect_flags, reason_code, properties
+):
     global mqtt_connected
 
     with state_lock:
         mqtt_connected = False
 
-    print(f"Disconnected from MQTT broker: {reason_code}")
+    server_sent = getattr(
+        disconnect_flags,
+        "is_disconnect_packet_from_server",
+        None,
+    )
+    reason_value = getattr(reason_code, "value", None)
+
+    print(
+        f"MQTT disconnected | "
+        f"reason={reason_code} | "
+        f"value={reason_value} | "
+        f"server_sent={server_sent}"
+    )
 
 def on_connect_fail(client, userdata):
     print(
@@ -103,7 +117,7 @@ def start_mqtt():
 
         mqtt_client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
-            client_id="esp32_web_dashboard",
+            client_id="web-dashboard-render-01",
         )
 
         mqtt_client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
