@@ -1,7 +1,7 @@
 
 import os
 import threading
-
+import uuid
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template
@@ -110,7 +110,7 @@ def start_mqtt():
 
         mqtt_client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
-            client_id="web-dashboard-render-01",
+            client_id=f"web-dashboard-{os.getenv('MQTT_ENV', 'local')}-{uuid.uuid4().hex[:6]}",
         )
 
         mqtt_client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
