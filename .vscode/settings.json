@@ -32,6 +32,6 @@
     "--query-driver=**",
     "--compile-commands-dir=d:\\minhhuy_data\\personal_projects\\blink\\blink\\build"
   ],
-  "idf.port": "COM9",
+  "idf.port": "COM8",
   "idf.flashType": "UART"
 }

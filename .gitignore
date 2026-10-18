@@ -63,6 +63,8 @@ env/
 main/password.h
 web_dashboard/.venv/
 web_dashboard/__pycache__/
+PASS.env
+main/emqxsl_ca.pem
 # Language Servers
 .clangd/
 .ccls-cache/

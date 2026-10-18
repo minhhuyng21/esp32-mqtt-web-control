@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 MQTT Control</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #101827;
+            color: #f1f5f9;
+            font-family: Arial, sans-serif;
+        }
+
+        .panel {
+            width: min(90%, 420px);
+            padding: 32px;
+            border: 1px solid #334155;
+            border-radius: 20px;
+            background: #1e293b;
+            text-align: center;
+        }
+
+        h1 { margin-top: 0; }
+
+        .status {
+            margin: 24px 0;
+            padding: 16px;
+            border-radius: 12px;
+            background: #0f172a;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            margin: 8px 0;
+            border: 0;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #onBtn { background: #16a34a; }
+        #offBtn { background: #dc2626; }
+        button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        #message { min-height: 24px; color: #cbd5e1; }
+        .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            margin-right: 8px;
+            border-radius: 50%;
+            background: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <main class="panel">
+        <h1>ESP32 Control</h1>
+        <p>MQTT Web Dashboard</p>
+
+        <div class="status">
+            <p>
+                <span class="dot" id="mqttDot"></span>
+                MQTT: <strong id="mqttStatus">Checking...</strong>
+            </p>
+            <p>LED state: <strong id="ledState">UNKNOWN</strong></p>
+        </div>
+
+        <button id="onBtn" onclick="setLED('ON')">TURN ON</button>
+        <button id="offBtn" onclick="setLED('OFF')">TURN OFF</button>
+
+        <p id="message" role="status"></p>
+    </main>
+
+    <script>
+        async function refreshState() {
+            try {
+                const response = await fetch('/api/state');
+                const data = await response.json();
+
+                document.getElementById('mqttStatus').textContent =
+                    data.mqtt_connected ? 'Connected' : 'Disconnected';
+
+                document.getElementById('mqttDot').style.background =
+                    data.mqtt_connected ? '#22c55e' : '#ef4444';
+
+                document.getElementById('ledState').textContent = data.led;
+                document.getElementById('onBtn').disabled = !data.mqtt_connected;
+                document.getElementById('offBtn').disabled = !data.mqtt_connected;
+            } catch {
+                document.getElementById('mqttStatus').textContent = 'Unavailable';
+            }
+        }
+
+        async function setLED(command) {
+            const message = document.getElementById('message');
+            message.textContent = 'Sending command...';
+
+            try {
+                const response = await fetch(`/api/led/${command}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (!response.ok) throw new Error(data.error || 'Request failed');
+                message.textContent = data.message;
+            } catch (error) {
+                message.textContent = error.message;
+            }
+
+            refreshState();
+        }
+
+        refreshState();
+        setInterval(refreshState, 1500);
+    </script>
+</body>
+</html>
