@@ -155,7 +155,6 @@ def health():
     # Render can use this endpoint to check HTTP availability.
     return jsonify({"status": "ok"}), 200
 
-
 @app.route("/api/state")
 def get_state():
     with state_lock:
@@ -165,6 +164,9 @@ def get_state():
     return jsonify({
         "led": state,
         "mqtt_connected": connected,
+        "pid": os.getpid(),
+        "client_id": client._client_id.decode() if client else None,
+        "lib_connected": client.is_connected() if client else None,
     })
 
 
