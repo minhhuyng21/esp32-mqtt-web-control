@@ -87,8 +87,7 @@ def on_message(client, userdata, msg):
         print(f"ESP32 reported LED state: {received}")
 
 def on_mqtt_log(client, userdata, level, buf):
-    if level in (mqtt.MQTT_LOG_ERR, mqtt.MQTT_LOG_WARNING):
-        print(f"[MQTT] {buf}")
+    print(f"[MQTT:{level}] {buf}", flush=True)
 
 def start_mqtt():
     """Start one MQTT client for this application process."""
