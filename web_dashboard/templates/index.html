@@ -3,101 +3,157 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 MQTT Control</title>
+    <title>Huy's House</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            display: grid;
-            place-items: center;
-            background: #101827;
-            color: #f1f5f9;
-            font-family: Arial, sans-serif;
-        }
-
-        .panel {
-            width: min(90%, 420px);
-            padding: 32px;
-            border: 1px solid #334155;
-            border-radius: 20px;
-            background: #1e293b;
-            text-align: center;
-        }
-
-        h1 { margin-top: 0; }
-
-        .status {
-            margin: 24px 0;
-            padding: 16px;
-            border-radius: 12px;
-            background: #0f172a;
-        }
-
-        button {
-            width: 100%;
-            padding: 14px;
-            margin: 8px 0;
-            border: 0;
-            border-radius: 10px;
-            color: white;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        #onBtn { background: #16a34a; }
-        #offBtn { background: #dc2626; }
-        button:disabled { opacity: 0.45; cursor: not-allowed; }
-
-        #message { min-height: 24px; color: #cbd5e1; }
-        .dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            margin-right: 8px;
-            border-radius: 50%;
-            background: #64748b;
-        }
+        :root{--bg:#0a0e1f;--ink:#e8ecff;--mint:#5eead4;--violet:#a78bfa;--pink:#f472b6;
+              --sans:'Sora',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace}
+        *{box-sizing:border-box}
+        body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;
+             background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden}
+        /* aurora, the one moving thing */
+        body::before{content:"";position:fixed;inset:-20%;z-index:-1;filter:blur(70px);opacity:.55;
+             background:radial-gradient(40% 35% at 25% 30%,var(--violet),transparent),
+                        radial-gradient(35% 30% at 75% 25%,var(--mint),transparent),
+                        radial-gradient(40% 35% at 60% 80%,var(--pink),transparent);
+             animation:drift 18s ease-in-out infinite alternate}
+        @keyframes drift{to{transform:translate(4%,6%) rotate(8deg)}}
+        .panel{width:min(100%,380px);padding:32px 26px;border:1px solid rgba(232,236,255,.18);
+             border-radius:18px;background:rgba(10,14,31,.72);backdrop-filter:blur(10px)}
+        .sun{width:56px;height:5px;margin:0 0 22px;border-radius:3px;background:rgba(232,236,255,.2);
+             transition:background .4s,box-shadow .4s}
+        body[data-led="ON"] .sun{background:var(--mint);box-shadow:0 0 16px var(--mint)}
+        h1{margin:0;font-size:1.9rem;font-weight:700;letter-spacing:-.02em}
+        .sub{margin:6px 0 22px;font:400 .8rem var(--mono);color:var(--mint)}
+        .status{margin-bottom:22px;font:400 .85rem var(--mono)}
+        .status p{margin:8px 0;display:flex;align-items:center}
+        .status strong{margin-left:6px;font-weight:500}
+        .dot{width:8px;height:8px;margin-right:8px;border-radius:50%;background:#555}
+        .password-input{width:100%;padding:12px 14px;border:0;border-bottom:1px solid rgba(232,236,255,.35);
+             background:transparent;color:var(--ink);font:400 .95rem var(--mono)}
+        .password-input::placeholder{color:rgba(232,236,255,.4)}
+        .password-input:focus{outline:0;border-bottom-color:var(--mint)}
+        button{width:100%;padding:13px;margin:10px 0 0;border:1px solid transparent;border-radius:10px;
+             font:600 .9rem var(--sans);letter-spacing:.06em;cursor:pointer;transition:transform .12s,filter .2s}
+        button:hover:not(:disabled){filter:brightness(1.15)}
+        button:active:not(:disabled){transform:scale(.97)}
+        button:focus-visible{outline:2px solid var(--mint);outline-offset:3px}
+        #checkBtn{background:transparent;border-color:rgba(232,236,255,.35);color:var(--ink)}
+        #onBtn{background:linear-gradient(90deg,var(--mint),var(--violet));color:#0a0e1f}
+        #offBtn{background:transparent;border-color:var(--pink);color:var(--pink)}
+        button:disabled{opacity:.3;cursor:not-allowed}
+        #authStatus{margin:10px 0 18px;font:400 .8rem var(--mono);opacity:.7}
+        #message{min-height:22px;margin:14px 0 0;font:400 .8rem var(--mono);color:var(--violet);overflow-wrap:anywhere}
+        @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
     </style>
 </head>
 <body>
     <main class="panel">
-        <h1>ESP32 Control</h1>
-        <p>MQTT Web Dashboard</p>
+        <div class="sun" aria-hidden="true"></div>
+        <h1>Huy's House</h1>
+        <p class="sub">ESP32 MQTT CONTROL</p>
 
         <div class="status">
             <p>
                 <span class="dot" id="mqttDot"></span>
                 MQTT: <strong id="mqttStatus">Checking...</strong>
             </p>
-            <p>LED state: <strong id="ledState">UNKNOWN</strong></p>
+            <p>LIGHT state: <strong id="ledState">UNKNOWN</strong></p>
         </div>
 
-        <button id="onBtn" onclick="setLED('ON')">TURN ON</button>
-        <button id="offBtn" onclick="setLED('OFF')">TURN OFF</button>
+        <section aria-label="Password check">
+            <input
+                class="password-input"
+                id="passwordInput"
+                type="password"
+                placeholder="Enter control password"
+                autocomplete="current-password"
+                aria-label="Control password"
+            >
+            <button id="checkBtn" type="button" onclick="checkPassword()">
+                CHECK PASSWORD
+            </button>
+            <p id="authStatus" role="status">Password: WRONG</p>
+        </section>
 
-        <p id="message" role="status"></p>
+        <button id="onBtn" type="button" onclick="setLED('ON')" disabled>
+            TURN ON
+        </button>
+        <button id="offBtn" type="button" onclick="setLED('OFF')" disabled>
+            TURN OFF
+        </button>
+
+        <p id="message" role="status" aria-live="polite"></p>
     </main>
 
     <script>
         async function refreshState() {
             try {
-                const response = await fetch('/api/state');
+                const response = await fetch('/api/state', {
+                    cache: 'no-store',
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) throw new Error('Could not retrieve state');
                 const data = await response.json();
+                const authorized = Boolean(data.control_authorized);
 
                 document.getElementById('mqttStatus').textContent =
                     data.mqtt_connected ? 'Connected' : 'Disconnected';
-
                 document.getElementById('mqttDot').style.background =
-                    data.mqtt_connected ? '#22c55e' : '#ef4444';
-
+                    data.mqtt_connected ? '#5eead4' : '#f472b6';
                 document.getElementById('ledState').textContent = data.led;
-                document.getElementById('onBtn').disabled = !data.mqtt_connected;
-                document.getElementById('offBtn').disabled = !data.mqtt_connected;
-            } catch {
+                document.body.dataset.led = data.led;
+                document.getElementById('authStatus').textContent =
+                    authorized ? 'Password: OK' : 'Password: NOT OK';
+
+                // Require both a correct password and an active MQTT connection.
+                const canControl = authorized && data.mqtt_connected;
+                document.getElementById('onBtn').disabled = !canControl;
+                document.getElementById('offBtn').disabled = !canControl;
+            } catch (error) {
                 document.getElementById('mqttStatus').textContent = 'Unavailable';
+                document.getElementById('mqttDot').style.background = '#f472b6';
+                document.getElementById('onBtn').disabled = true;
+                document.getElementById('offBtn').disabled = true;
+            }
+        }
+
+        async function checkPassword() {
+            const passwordInput = document.getElementById('passwordInput');
+            const checkBtn = document.getElementById('checkBtn');
+            const authStatus = document.getElementById('authStatus');
+            const message = document.getElementById('message');
+
+            checkBtn.disabled = true;
+            try {
+                const response = await fetch('/api/check-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ password: passwordInput.value })
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Could not check password');
+                }
+
+                passwordInput.value = '';
+                authStatus.textContent = data.ok
+                    ? 'Password: OK'
+                    : 'Password: NOT OK';
+                message.textContent = data.ok
+                    ? 'Password accepted.'
+                    : 'Wrong password.';
+                await refreshState();
+            } catch (error) {
+                authStatus.textContent = 'Password: NOT OK';
+                message.textContent = error.message;
+                await refreshState();
+            } finally {
+                checkBtn.disabled = false;
             }
         }
 
@@ -107,7 +163,8 @@
 
             try {
                 const response = await fetch(`/api/led/${command}`, {
-                    method: 'POST'
+                    method: 'POST',
+                    credentials: 'same-origin'
                 });
                 const data = await response.json();
 
@@ -117,8 +174,12 @@
                 message.textContent = error.message;
             }
 
-            refreshState();
+            await refreshState();
         }
+
+        document.getElementById('passwordInput').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') checkPassword();
+        });
 
         refreshState();
         setInterval(refreshState, 1500);

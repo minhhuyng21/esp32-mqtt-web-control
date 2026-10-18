@@ -24,7 +24,7 @@ extern const uint8_t emqxsl_ca_pem_start[]
     asm("_binary_emqxsl_ca_pem_start");
 
 /* Hardware configuration */
-#define LED_GPIO 16
+#define LED_GPIO 27
 
 /* MQTT topics */
 #define TOPIC_SET   "home/led1/set"

@@ -1,3 +1,4 @@
+import hmac
 import os
 import threading
 import time
@@ -5,28 +6,35 @@ import uuid
 
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request, session
 
-# PASS.env chỉ dùng ở local.
-# Trên Render, cấu hình biến môi trường trong Dashboard.
+# PASS.env is for local development. On Render, set variables in the service dashboard.
 load_dotenv("PASS.env")
 
 app = Flask(__name__)
+app.config.update(
+    # Set a private, random SECRET_KEY in PASS.env / Render environment variables.
+    SECRET_KEY=os.getenv("SECRET_KEY", "local-development-only-change-this"),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true",
+)
+
+# Dashboard password: set CONTROL_PASSWORD in PASS.env or the Render environment.
+CONTROL_PASSWORD = os.getenv("CONTROL_PASSWORD", "")
 
 MQTT_HOST = os.getenv("MQTT_HOST")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "8883"))
 MQTT_USER = os.getenv("MQTT_USER")
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 MQTT_TLS = os.getenv("MQTT_TLS", "true").lower() == "true"
-MQTT_ENV = os.getenv("MQTT_ENV", "local")      # đặt MQTT_ENV=render trên Render
+MQTT_ENV = os.getenv("MQTT_ENV", "local")  # Set MQTT_ENV=render on Render.
 MQTT_DEBUG = os.getenv("MQTT_DEBUG", "false").lower() == "true"
 
 TOPIC_SET = "home/led1/set"
 TOPIC_STATE = "home/led1/state"
 
-# ---------------------------------------------------------------------------
-# Trạng thái dùng chung
-# ---------------------------------------------------------------------------
+# Shared state
 state_lock = threading.Lock()
 mqtt_start_lock = threading.Lock()
 
@@ -38,12 +46,10 @@ last_event = ""
 mqtt_error = None
 
 client = None
-client_pid = None  # pid của process đã tạo client; dùng để chống lỗi fork
+client_pid = None  # Prevent reusing a Paho client created in a different process.
 
 
-# ---------------------------------------------------------------------------
-# Callback MQTT
-# ---------------------------------------------------------------------------
+# MQTT callbacks
 def on_connect(client, userdata, flags, reason_code, properties):
     global mqtt_connected, connect_count, last_event
 
@@ -92,11 +98,9 @@ def on_message(client, userdata, msg):
         return
 
     received = msg.payload.decode("utf-8", errors="replace").strip().upper()
-
     if received in ("ON", "OFF"):
         with state_lock:
             led_state = received
-
         print(f"ESP32 reported LED state: {received}", flush=True)
 
 
@@ -105,11 +109,7 @@ def on_mqtt_log(client, userdata, level, buf):
         print(f"[pid {os.getpid()}] [MQTT:{level}] {buf}", flush=True)
 
 
-# ---------------------------------------------------------------------------
-# Khởi tạo MQTT: mỗi process (worker) tự tạo client của riêng mình.
-# Không chạy lúc import, vì nếu gunicorn import ở master rồi fork,
-# thread mạng của paho sẽ không sống trong worker.
-# ---------------------------------------------------------------------------
+# Start one MQTT client per worker process.
 def start_mqtt():
     global client, client_pid, mqtt_connected, mqtt_error
 
@@ -149,7 +149,7 @@ def start_mqtt():
         mqtt_client.on_log = on_mqtt_log
         mqtt_client.reconnect_delay_set(min_delay=1, max_delay=30)
 
-        # connect_async + loop_start: không chặn request, tự retry khi lỗi mạng.
+        # Connect asynchronously; Paho retries if the network is temporarily unavailable.
         mqtt_client.connect_async(MQTT_HOST, MQTT_PORT, keepalive=60)
         mqtt_client.loop_start()
 
@@ -160,7 +160,7 @@ def start_mqtt():
 
 @app.before_request
 def ensure_mqtt():
-    """Đảm bảo process hiện tại đã có MQTT client."""
+    """Ensure the current worker process has an MQTT client."""
     global mqtt_error
 
     if client_pid == os.getpid():
@@ -175,14 +175,11 @@ def ensure_mqtt():
 
 @app.after_request
 def no_cache(response):
-    # Tránh trình duyệt cache trạng thái cũ của /api/*
     response.headers["Cache-Control"] = "no-store"
     return response
 
 
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
+# Website routes
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -193,16 +190,49 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 
+@app.route("/api/check-password", methods=["POST"])
+def check_password():
+    """Check the entered password and remember the result in this browser session."""
+    if not CONTROL_PASSWORD:
+        return jsonify({"ok": False, "error": "CONTROL_PASSWORD is not configured"}), 500
+
+    payload = request.get_json(silent=True) or {}
+    submitted_password = payload.get("password", "")
+
+    ok = (
+        isinstance(submitted_password, str)
+        and hmac.compare_digest(submitted_password, CONTROL_PASSWORD)
+    )
+
+    if ok:
+        session["control_authorized"] = True
+    else:
+        # A wrong password returns this browser session to the locked state.
+        session.pop("control_authorized", None)
+
+    return jsonify({"ok": ok}), 200
+
+
 @app.route("/api/state")
 def get_state():
     with state_lock:
+        current_client = client
+        raw_client_id = getattr(current_client, "_client_id", None) if current_client else None
+        if isinstance(raw_client_id, bytes):
+            displayed_client_id = raw_client_id.decode("utf-8", errors="replace")
+        elif raw_client_id is not None:
+            displayed_client_id = str(raw_client_id)
+        else:
+            displayed_client_id = None
+
         data = {
             "led": led_state,
             "mqtt_connected": mqtt_connected,
-            # thông tin debug, có thể xóa sau khi chạy ổn
+            "control_authorized": bool(session.get("control_authorized", False)),
+            # Useful debug details; these can be removed after everything works.
             "pid": os.getpid(),
-            "client_id": client._client_id.decode() if client else None,
-            "lib_connected": client.is_connected() if client else None,
+            "client_id": displayed_client_id,
+            "lib_connected": current_client.is_connected() if current_client else False,
             "connect_count": connect_count,
             "disconnect_count": disconnect_count,
             "last_event": last_event,
@@ -219,13 +249,18 @@ def set_led(command):
     if command not in ("ON", "OFF"):
         return jsonify({"error": "Command must be ON or OFF"}), 400
 
+    # The server checks authorization too; disabling buttons in HTML is not security by itself.
+    if not session.get("control_authorized", False):
+        return jsonify({"error": "Enter the correct password first"}), 401
+
     with state_lock:
         connected = mqtt_connected
+        current_client = client
 
-    if not connected or client is None:
+    if not connected or current_client is None:
         return jsonify({"error": "MQTT broker is disconnected"}), 503
 
-    result = client.publish(TOPIC_SET, command, qos=1, retain=False)
+    result = current_client.publish(TOPIC_SET, command, qos=1, retain=False)
 
     if result.rc != mqtt.MQTT_ERR_SUCCESS:
         return jsonify({"error": "Could not publish MQTT command"}), 503
@@ -237,8 +272,13 @@ def set_led(command):
 
 
 if __name__ == "__main__":
-    # Chạy local: kết nối MQTT ngay khi khởi động.
-    start_mqtt()
+    # Start MQTT immediately for local development.
+    try:
+        start_mqtt()
+    except Exception as exc:
+        mqtt_error = str(exc)
+        print(f"Initial MQTT startup failed: {exc}", flush=True)
+
     app.run(
         host="0.0.0.0",
         port=int(os.getenv("PORT", "5000")),
