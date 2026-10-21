@@ -14,10 +14,15 @@ This is a personal learning project. The idea is a small DIY smart plug: any lam
 **https://esp32-mqtt-web-control.onrender.com**
 
 - The app runs on Render's free tier, so it sleeps after a while without traffic. The first load can take around a minute.
-- The page has no login. That is fine for an LED, but it must be fixed before this controls anything on mains (see [Roadmap](#roadmap)).
+- This page currently requires a password to access.
+<!-- 
+## Demo Video
 
-<!-- TODO: add a short demo GIF/MP4 here, e.g. docs/demo.gif -->
-<!-- TODO: add 1-2 screenshots of the web UI, e.g. docs/ui.png -->
+[▶ Watch Demo Video (MP4)](docs/C0281.MP4) -->
+
+## UI Preview
+
+![ESP32 MQTT Web Dashboard UI](docs/ui.png)
 
 ## How it works
 
@@ -28,7 +33,9 @@ flowchart LR
     M -- "home/led1/set" --> E[ESP32 firmware, ESP-IDF]
     E -- "publish home/led1/state" --> M
     M -- "home/led1/state" --> F
-    E --> L[LED / relay]
+    E --> L[relay]
+    L --> P[Plug]
+    P --> A[Light]
 ```
 
 | Topic | Direction | Payload |
@@ -171,15 +178,3 @@ The plug build is at the design stage and has not been built yet. The design cho
 - **Duplicate client ID.** With a fixed MQTT client ID, a second copy of the app (for example the local one and the Render one) makes the broker disconnect the first, and both reconnect forever. Each process now adds a random suffix to its client ID.
 - **Threads and gunicorn.** paho runs its network loop in a background thread, and threads do not survive `fork`. The MQTT client is created inside the worker process on its first request instead of when the module is imported.
 - **Render free tier.** When the service sleeps, the MQTT connection goes with it. The first request wakes it up again.
-
-## Roadmap
-
-- [x] Web UI to MQTT to ESP32 control of an LED
-- [x] Deployed on Render with EMQX Cloud over TLS
-- [ ] Build the smart plug hardware (double-pole switching, manual override)
-- [ ] Add authentication to the web UI before it controls anything on mains
-- [ ] Show device online/offline using MQTT Last Will
-
-## License
-
-No license chosen yet.
