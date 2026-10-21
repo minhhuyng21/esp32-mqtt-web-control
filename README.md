@@ -22,7 +22,7 @@ This is a personal learning project. The idea is a small DIY smart plug: any lam
 
 ## UI Preview
 
-![ESP32 MQTT Web Dashboard UI](docs/ui.png)
+![ESP32 MQTT Web Dashboard UI](docs/UI.png)
 
 ## How it works
 
