@@ -15,10 +15,10 @@ This is a personal learning project. The idea is a small DIY smart plug: any lam
 
 - The app runs on Render's free tier, so it sleeps after a while without traffic. The first load can take around a minute.
 - This page currently requires a password to access.
-<!-- 
+
 ## Demo Video
 
-[▶ Watch Demo Video (MP4)](docs/C0281.MP4) -->
+[▶ Watch Demo Video (MP4)](docs/demo.mp4)
 
 ## UI Preview
 
