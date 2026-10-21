@@ -3,54 +3,39 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-
 #include "esp_err.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
 #include "nvs_flash.h"
-
 #include "driver/gpio.h"
 #include "mqtt_client.h"
-
 #include "password.h"
 
-/* Embedded EMQX CA certificate */
 extern const uint8_t emqxsl_ca_pem_start[]
     asm("_binary_emqxsl_ca_pem_start");
 
-/* Hardware configuration */
 #define LED_GPIO 27
 
-/* MQTT topics */
 #define TOPIC_SET   "home/led1/set"
 #define TOPIC_STATE "home/led1/state"
 
-static const char *TAG = "ESP32_MQTT";
+static const char *TAG = "ESP32_MQTT"; // Log tag
 
 static esp_mqtt_client_handle_t mqtt_client = NULL;
 static bool mqtt_started = false;
 
 /* Handle MQTT events */
-static void mqtt_event_handler(
-    void *handler_args,
-    esp_event_base_t base,
-    int32_t event_id,
-    void *event_data
-)
-{
-    esp_mqtt_event_handle_t event =
-        (esp_mqtt_event_handle_t)event_data;
+static void mqtt_event_handler(void *handler_args,esp_event_base_t base,int32_t event_id,void *event_data){
+    esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
 
     switch ((esp_mqtt_event_id_t)event_id) {
 
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG, "Connected to EMQX Cloud");
-
         esp_mqtt_client_subscribe(
             mqtt_client,
             TOPIC_SET,
@@ -78,14 +63,7 @@ static void mqtt_event_handler(
             event->data
         );
 
-        if (
-            event->topic_len == strlen(TOPIC_SET) &&
-            strncmp(
-                event->topic,
-                TOPIC_SET,
-                event->topic_len
-            ) == 0
-        ) {
+        if (event->topic_len == strlen(TOPIC_SET) && strncmp(event->topic,TOPIC_SET,event->topic_len) == 0) {
             const char *state = NULL;
 
             /* Copy payload into a null-terminated buffer */
@@ -215,24 +193,12 @@ static void start_mqtt(void)
 }
 
 /* Handle Wi-Fi and IP events */
-static void wifi_event_handler(
-    void *arg,
-    esp_event_base_t event_base,
-    int32_t event_id,
-    void *event_data
-)
-{
-    if (
-        event_base == WIFI_EVENT &&
-        event_id == WIFI_EVENT_STA_START
-    ) {
+static void wifi_event_handler(void *arg,esp_event_base_t event_base,int32_t event_id,void *event_data){
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         ESP_LOGI(TAG, "Connecting to Wi-Fi...");
         esp_wifi_connect();
     }
-    else if (
-        event_base == WIFI_EVENT &&
-        event_id == WIFI_EVENT_STA_DISCONNECTED
-    ) {
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         ESP_LOGW(TAG, "Wi-Fi disconnected; retrying...");
         esp_wifi_connect();
     }
@@ -253,7 +219,6 @@ static void wifi_event_handler(
     }
 }
 
-/* Application entry point */
 void app_main(void)
 {
     ESP_LOGI(TAG, "Starting ESP32 MQTT application");
