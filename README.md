@@ -16,9 +16,6 @@ This is a personal learning project. The idea is a small DIY smart plug: any lam
 - The app runs on Render's free tier, so it sleeps after a while without traffic. The first load can take around a minute.
 - This page currently requires a password to access.
 
-## Demo Video
-
-[▶ Watch Demo Video (MP4)](docs/demo.mp4)
 
 ## UI Preview
 
@@ -73,71 +70,6 @@ The page shows the state the ESP32 reports, not the command that was sent, so it
 
 ```
 
-## Getting started
-
-### 1. MQTT broker
-
-Create a deployment on EMQX Cloud, add an authentication user, and note the host name. The app connects over TLS on port 8883. Every client needs a **unique client ID**, otherwise the broker keeps kicking the older connection (see [Things I ran into](#things-i-ran-into)).
-
-### 2. Run the web app locally
-
-```bash
-git clone <your-repo-url>
-cd <your-repo-folder>
-
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-Create a file named `PASS.env` next to `app.py`:
-
-```env
-MQTT_HOST=your-broker-host.emqxsl.com
-MQTT_PORT=8883
-MQTT_USER=your-username
-MQTT_PASSWORD=your-password
-MQTT_TLS=true
-```
-
-Then run:
-
-```bash
-python app.py
-```
-
-Open http://localhost:5000. `PASS.env` holds your broker credentials, so make sure it is listed in `.gitignore` and never committed.
-
-| Variable | Required | Description |
-|---|---|---|
-| `MQTT_HOST` | yes | Broker host name |
-| `MQTT_PORT` | no | Default `8883` |
-| `MQTT_USER`, `MQTT_PASSWORD` | yes | Broker credentials |
-| `MQTT_TLS` | no | Default `true` |
-| `MQTT_ENV` | no | Label put in the client ID (`local`, `render`, ...) |
-| `MQTT_DEBUG` | no | `true` prints every paho log line |
-
-### 3. Deploy to Render
-
-Create a Web Service from the repo and set:
-
-- **Build command:** `pip install -r requirements.txt`
-- **Start command:** `gunicorn --workers 1 --threads 4 --bind 0.0.0.0:$PORT app:app`
-- **Environment:** the variables above, plus `MQTT_ENV=render` and `PYTHONUNBUFFERED=1`
-
-Use a single worker: each worker process opens its own MQTT connection.
-
-### 4. Flash the ESP32
-
-The firmware is an ESP-IDF project in `firmware/`. Set your Wi-Fi and MQTT credentials (menuconfig or your own config file), then:
-
-```bash
-cd firmware
-idf.py set-target esp32
-idf.py build flash monitor
-```
-
-<!-- TODO: add the ESP-IDF version used, and how Wi-Fi/MQTT credentials are configured -->
 
 ## API
 
@@ -148,18 +80,16 @@ idf.py build flash monitor
 | `GET` | `/api/state` | `{"led": "ON \| OFF \| UNKNOWN", "mqtt_connected": true, ...}` |
 | `POST` | `/api/led/ON` or `/api/led/OFF` | Publish a command. Returns `503` if the broker is not connected |
 
-## Smart plug hardware (design)
+### Design Overview
 
 > [!WARNING]
-> This part involves 220 V mains voltage, which can kill. It is a learning project, not a certified product. Work with the plug pulled out of the wall, use an insulated enclosure, and have someone with electrical experience review the build before using it long term.
+> This part involves 220 V mains voltage, which can kill. It is a learning project, not a certified product. 
 
-The plug build is at the design stage and has not been built yet. The design choices:
 
-- **2-pin, non-polarized plug.** The plug can go in either way, so neither wire can be assumed to be live.
-- **Both conductors are switched.** A 2-channel relay module is used as a double-pole switch: relay 1 on one wire, relay 2 on the other, always driven together.
-- **Manual override.** A 2-pole, 3-position ON-OFF-ON rocker switch. `ON` bypasses the relays, `OFF` cuts both wires, `AUTO` lets the ESP32 decide. The socket still works if the ESP32 fails.
-- **Protection.** 10 A fuse, isolated 5 V supply, fully insulated enclosure (there is no earth wire, so no exposed metal).
-- **Intended loads.** Small resistive loads such as lamps, about 5 A per relay at most. Not for motors or compressors.
+- **Power input/output:** 2-pin power plug and standalone 3-outlet socket.
+- **Control:** ESP32 and dual-relay module for remote ON/OFF control.
+- **Safety:** Fuse protection and insulated enclosure.
+- **Target load:** Small loads such as lamps, subject to verified component ratings.
 
 <!-- TODO: add the wiring diagram, e.g. docs/wiring.svg -->
 
@@ -167,14 +97,12 @@ The plug build is at the design stage and has not been built yet. The design cho
 |---|---|
 | ESP32 DevKit | 3.3 V logic, powered from 5 V |
 | 2-channel 5 V relay module | Opto-isolated, SRD-05VDC type, rated 10 A / 250 VAC |
-| Isolated 5 V supply | HLK-PM01 inside the enclosure, or a certified external adapter |
-| DPDT ON-OFF-ON rocker switch | 6 pins, 16 A 250 VAC |
 | Fuse and holder | 10 A |
-| 2-pin plug cord and 2-pin socket | Rated for the load |
-| Insulated enclosure | ABS, fixed lid, cable strain relief |
+| 2-pin power cord | Standard 2-prong plug |
+| 3-outlet socket | Standalone 3-hole power socket |
 
-## Things I ran into
+### Challenges
 
-- **Duplicate client ID.** With a fixed MQTT client ID, a second copy of the app (for example the local one and the Render one) makes the broker disconnect the first, and both reconnect forever. Each process now adds a random suffix to its client ID.
-- **Threads and gunicorn.** paho runs its network loop in a background thread, and threads do not survive `fork`. The MQTT client is created inside the worker process on its first request instead of when the module is imported.
-- **Render free tier.** When the service sleeps, the MQTT connection goes with it. The first request wakes it up again.
+- **Instability:** The cheap plug may be causing unstable operation. For example, electricity is still present at the output even when the relay and ESP32 are off.
+- **Wi-Fi setup for ESP32:** The Wi-Fi SSID and password are hardcoded in the firmware, and I haven't built an application that allows users to configure them directly.
+- **Render free tier:** When the service goes to sleep, the MQTT connection is lost. The first request wakes the service up again.
