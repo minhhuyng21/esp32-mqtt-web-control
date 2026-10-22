@@ -8,7 +8,9 @@
 Switch a plug-in lamp from a web page. A Flask app on Render publishes commands over MQTT (EMQX Cloud), an ESP32 receives them and drives a relay, and the relay switches a mains socket.
 
 This is a personal learning project. The idea is a small DIY smart plug: any lamp with a normal plug (no smart bulb needed) goes into the socket, and the ESP32 decides when the socket has power. To test the whole chain safely before touching mains voltage, the first version drives an LED instead of a socket. The mains hardware is the next step and is described in [Smart plug hardware](#smart-plug-hardware-design).
+## Schematic
 
+![Circuit Schematic](docs/schematic.png)
 ## Live demo
 
 **https://esp32-mqtt-web-control.onrender.com**
@@ -100,6 +102,7 @@ The page shows the state the ESP32 reports, not the command that was sent, so it
 | Fuse and holder | 10 A |
 | 2-pin power cord | Standard 2-prong plug |
 | 3-outlet socket | Standalone 3-hole power socket |
+
 
 ### Challenges
 
