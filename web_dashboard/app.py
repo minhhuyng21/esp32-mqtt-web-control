@@ -31,8 +31,8 @@ MQTT_TLS = os.getenv("MQTT_TLS", "true").lower() == "true"
 MQTT_ENV = os.getenv("MQTT_ENV", "local")  # Set MQTT_ENV=render on Render.
 MQTT_DEBUG = os.getenv("MQTT_DEBUG", "false").lower() == "true"
 
-TOPIC_SET = "home/led1/set"
-TOPIC_STATE = "home/led1/state"
+TOPIC_SET = "cmnd/led1/POWER"
+TOPIC_STATE = "stat/led1/POWER"
 
 # Shared state
 state_lock = threading.Lock()
